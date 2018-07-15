@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<!--Import Google Icon Font-->
+		<link href="http://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+		<!--Import materialize.css-->
+		<link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/materialize/0.98.0/css/materialize.min.css" media="screen,projection" />
+		<link rel="icon" sizes="192x192" href="/favicon.png">
+
+		<!--Let browser know website is optimized for mobile-->
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+		<meta charset="utf-8"/>
+		<title>AutoPlantWater</title>
+	</head>
+
+	<body>
+		<header>
+			<div class="awTitle">AutoPlantWater</div>
+		</header>
+		<div class="container" id="events">
+			<div class = "row">
+				<div class = "col s12">
+					<ul class = "tabs">
+						<li class = "tab col s4"><a href = "#status">Status</a></li>
+						<li class = "tab col s4"><a class = "active" href = "#schedule">Schedule</a></li>
+						<li class = "tab col s4 "><a href = "#config">Config</a></li>
+					</ul>
+				</div>
+         
+				<div id = "status" class = "tab col s12">Status</div>
+				<div id = "schedule" class = "tab col s12">Schedule</div>
+				<div id = "config" class = "tab col s12">Config</div>
+			</div> 
+		</div>
+		<style type="text/css">
+			.btn_grid {
+				margin: 3px 0;
+			}
+			.btn {
+				height: 28px;
+				line-height: 28px;
+			}
+			.awTitle {
+				display:inline-block;
+				font-size: x-large;
+				padding-left:20px;
+				width:200px;
+			}
+			header {
+				position:absolute;
+				top:0px;
+				left:0px;
+				height:32px;
+				right:0px;
+				overflow:hidden;
+				background:red;
+				color:white;
+			}
+			.container {
+				position:absolute;
+				top:32px;
+				bottom:0px;
+				left:10px;
+				right:60px;
+				overflow-y:auto;
+				overflow-x:hidden;
+			}
+			.tab {
+				overflow-x:hidden;
+			}
+		</style>
+	
+		<!--Import jQuery before materialize.js-->
+		<script type="text/javascript" src="http://code.jquery.com/jquery-2.1.1.min.js"></script>
+		<script src="http://cdnjs.cloudflare.com/ajax/libs/materialize/0.98.0/js/materialize.min.js"></script>
+		<script type="text/javascript">(function($){
+$(function(){
+	  
+	// Settings
+	var host = window.location.hostname;
+	var configTitles = 'Parameter,Value';
+	var configNames = 'host,waterMode,waterInterval,waterPulse,moistureLevel,schedule,timeZone,minutesTimeZone,sleepInterval';
+	var scheduleTitles = 'Code,Day,Time,Action';
+	var statusTitles = 'Parameter,Value';
+	var wkDayStr = 'Sun,Mon,Tue,Wed,Thu,Fri,Sat';
+	var wkDays = wkDayStr.split(',');
+
+	// ******************************************************************
+	// init()
+	// ******************************************************************
+	function init() {
+		loadSchedule();
+		loadConfig();
+		loadStatus();
+	}
+	
+	function twoD(value) {
+		if(value < 10) return "0" + value;
+		return value;
+	}
+	
+	function dayNumber(day) {
+		var i;
+		for(i=0;i<7;i++) {
+			if(day.toUpperCase() == wkDays[i].toUpperCase()) return i + 1;;
+		}
+		return 1;
+	}
+	
+	function loadSchedule() {
+		// Load schedule
+		$.get("http://" + host + "/schedule.txt", function(data) {
+			var lines = data.split("\n");
+			var schedule_html = '<table id="schedValues"><thead><tr>';
+			var scheduleFields = [];
+			var i;
+			
+			scheduleFields = scheduleTitles.split(",");
+			for(i=0; i< 4; i++) schedule_html += '<th>' + scheduleFields[i] + '</th>';
+			schedule_html += '</thead></tr><tbody>';
+			$.each(lines, function(n, urlRecord) {
+				if(urlRecord.length > 0 && urlRecord.charAt(0) != '#') {
+					scheduleFields = urlRecord.split(",");
+					schedule_html += '<tr>'; 
+					schedule_html += '<td>' + scheduleFields[0] + '</td>'; 
+					schedule_html += '<td>' + wkDays[scheduleFields[1]-1] + '</td>'; 
+					schedule_html += '<td>' + twoD(scheduleFields[2]) + ':'  + twoD(scheduleFields[3]) + ':'  + twoD(scheduleFields[4]) + '</td>'; 
+					schedule_html += '<td><a class="btn  delete red" id="delete" data-mode="' + scheduleFields.slice(1).join() + '"><i class="material-icons">delete_forever</i></a></td>'; 
+					schedule_html += '</tr>';
+				}
+			});
+			schedule_html += '<tr>';
+			schedule_html += '<td><input size="4" id="addCode" style="width:80px;height:24px" value="1" type="text"></td>'; 
+			schedule_html += '<td><input size="4" id="addDay" style="width:80px;height:24px" value="Sun" type="text"></td>'; 
+			schedule_html += '<td><input size="4" id="addTime" style="width:80px;height:24px" value="12:00:00" type="text"></td>'; 
+			schedule_html += '<td><a class="btn add green" id="add" style="width:80px;height:24px"><i class="material-icons">note_add</i></a></td>'; 
+			schedule_html += '</tr></table>';
+
+			$('#schedule').html(schedule_html);
+		});
+	}
+	
+	function loadConfig() {
+		// Load config
+		$.get("http://" + host + "/waterConfig.txt", function(data) {
+			var lines = data.split("\n");
+			var config_html = '<table id="configValues"><thead><tr>';
+			var i;
+			var j = 0;
+			var configFields = [];
+			configFields = configTitles.split(",");
+			for(i=0; i< 2; i++) config_html += '<th>' + configFields[i] + '</th>';
+			config_html += '</thead></tr><tbody>';
+
+			var nameFields = configNames.split(',');
+			$.each(lines, function(n, urlRecord) {
+				if(urlRecord.length > 0 && urlRecord.charAt(0) != '#') {
+					config_html += '<tr>'; 
+					config_html += '<td>' + nameFields[j] + '</td>';
+					j++;
+					config_html += '<td><input id="config_' + j + '"style="width:200px;height:24px" value="' + urlRecord + '" type="text"></td>'; 
+					config_html += '</tr>';
+				}
+			});
+			config_html += '</table>';
+			config_html += '<a class="btn save green" id="save" style="width:80px;height:24px"><i class="material-icons">save</i></a>'; 
+			$('#config').html(config_html);
+		});
+	}
+
+	function loadStatus() {
+		$.get("http://" + host + "/status",  function(data) {
+			var lines = data.split("<BR>");
+			var status_html = '<table><thead><tr>';
+			var i;
+			var j = 0;
+			var statusFields = [];
+			statusFields = statusTitles.split(",");
+			for(i=0; i< 2; i++) status_html += '<th>' + statusFields[i] + '</th>';
+			status_html += '</thead></tr><tbody>';
+			
+
+			$.each(lines, function(n, urlRecord) {
+				if(urlRecord.length > 0 && urlRecord.charAt(0) != '#') {
+				statusFields = urlRecord.split(',');
+					if(statusFields[1] != '') {
+						status_html += '<tr>'; 
+						status_html += '<td>' + statusFields[0] + '</td>';
+						status_html += '<td>' + statusFields[1] + '</td>'; 
+						status_html += '</tr>';
+					}
+					j++;
+				}
+			});
+			status_html += '</table>';
+			status_html += 'Pulse&nbsp<a class="btn pulse green" id="pulse" style="width:80px;height:24px"><i class="material-icons">play_arrow</i></a>'; 
+			$('#status').html(status_html);
+		});
+	}
+	
+	// ******************************************************************
+	// Actions
+	// ******************************************************************	
+	$("#events").on("click", "#delete", function() {
+		var event = $(this).attr("data-mode");
+		var btn = $(this);
+		deleteEvent(event);
+		loadSchedule();
+	});	
+	
+	$("#events").on("click", "#add", function() {
+		var btn = $(this);
+		addEvent();
+		loadSchedule();
+	});	
+
+	$("#config").on("click", "#save", function() {
+		var config;
+		var btn = $(this);
+		saveConfig(config);
+		loadConfig();
+	});
+	
+	$("#status").on("click", "#pulse", function() {
+		pulseWater(500);
+	});
+
+	function addEvent(event) {
+		var addCode = document.getElementById('addCode').value;
+		var addDay = document.getElementById('addDay').value;
+		var strTime = document.getElementById('addTime').value;
+		var addTime = strTime.split(':');
+		var aEvent = addCode;
+        aEvent += ',' + dayNumber(addDay);
+        aEvent += ',' + addTime[0];
+        aEvent += ',' + addTime[1];
+        aEvent += ',' + addTime[2];
+		$.get("http://" + host + "/addEvent", {'auth':14153143,'p':aEvent} );
+	}
+	
+	function deleteEvent(event) {
+		$.get("http://" + host + "/deleteEvent", {'auth':14153143,'p':event} );
+	}
+
+	function saveConfig(config) {
+		var config = document.getElementById('config_1').value;
+		var i;
+		for (var r = 2, n = configNames.split(',').length; r <= n; r++) {
+            config += ',' + document.getElementById('config_' + r).value;
+        }
+		$.get("http://" + host + "/updateConfig", {'auth':14153143,'p':config} );
+	}
+	
+	function pulseWater(value) {
+		$.get("http://" + host + "/pulse", {'auth':14153143,'p':value} );
+	}
+
+	function refresh(updateRate) {
+	   setInterval(function(){ loadStatus(); }, updateRate);
+	}
+	
+	// ******************************************************************
+	// main
+	// ******************************************************************
+	init();
+	refresh(30000);
+	
+}); // end of document ready
+})(jQuery); // end of jQuery name space</script>
+	</body>
+</html>

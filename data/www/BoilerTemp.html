@@ -1,0 +1,106 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
+<link rel="stylesheet" href="css/bootstrap-timepicker.min.css">
+<link rel="stylesheet" href="css/remote.css">
+<title>Boiler Temperature monitor</title>
+</head>
+
+<body>
+   <nav class="navbar navbar-default navbar-fixed-top">
+      <div class="container">
+         <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+            <span class="sr-only">Toggle navigation</span>
+               <span class="icon-bar"></span>
+               <span class="icon-bar"></span>
+               <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="#">Boiler Temperature</a>
+         </div>
+         <div id="navbar" class="collapse navbar-collapse">
+            <ul class="nav navbar-nav">
+               <li class="active"><a href="#page-temperature" data-toggle="tab">Temperature</a></li>
+               <li><a href="#page-settings" data-toggle="tab">Settings</a></li>
+            </ul>
+            <p class="navbar-text navbar-right">
+               <span id="status-onoff" 
+                     class="status" 
+                     data-toggle="tooltip" 
+                     data-placement="left" 
+                     title=""></span>
+               <span id="status-time"></span>
+               <span id="status-temp"></span>&deg;C
+            </p>
+         </div>
+      </div>
+   </nav>
+
+   <div class="tab-content">
+      <div id="page-temperature" class="container tab-pane active">
+         <form>
+            <div class="values">
+				<div class="value">Minimum T: <span id="value-minimum"></span></div>
+				<div class="value">Maximum T: <span id="value-maximum"></span></div>
+				<div class="value">Peak T: <span id="value-peak"></span></div>
+				<div class="value">Trough T: <span id="value-trough"></span></div>
+				<div class="value">Average T: <span id="value-average"></span></div>
+				<div class="value">Last Off secs: <span id="value-lastoff"></span></div>
+				<div class="value">Last On secs: <span id="value-laston"></span></div>
+				<div class="value">On Percentage: <span id="value-percentage"></span></div>
+				<div class="value">Test secs: <span id="value-duration"></span></div>
+            </div>
+			<div id="tempChart" style="width:600px;height:300px"></div>
+         </form>
+      </div>
+      
+      <div id="page-settings" class="container tab-pane">
+         <form class="form-horizontal hidden">
+            <div class="form-group">
+               <label class="col-sm-2 control-label" for="">Holiday Mode</label>
+               <div class="col-sm-10">
+                  <label class="radio-inline">
+                     <input type="radio" name="holiday" id="settings-holiday-on" value="1"> On
+                  </label>
+                  <label class="radio-inline">
+                     <input type="radio" name="holiday" id="settings-holiday-off" value="0"> Off
+                  </label>
+               </div>
+            </div>
+            
+            <div class="form-group">
+               <div class="col-sm-offset-2 col-sm-10">
+                  <button id="settings-submit" class="btn btn-default" type="button">
+                     <span class="glyphicon glyphicon-floppy-disk" aria-hidden="true"></span> Save
+                  </button>
+               </div>
+            </div>
+         </form>
+      </div>
+   </div>
+
+   <footer class="footer">
+      <div class="container">
+      </div>
+   </footer>
+   
+    <div id="remote-loading" class="modal fade" data-backdrop="static" data-keyboard="false">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <img id="remote-loading-spinner" src="images/ajax-loader.gif" title="Loading..." width="32" height="32"/>
+                <p id="remote-loading-text">Loading...</p>
+            </div>
+        </div>
+    </div>
+    
+   <script src="http://code.jquery.com/jquery-1.12.2.min.js"  integrity="sha256-lZFHibXzMHo3GGeehn1hudTAP3Sc0uKXBXAzHX1sjtk=" crossorigin="anonymous"></script>
+   <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+   <script src="js/bootstrap-timepicker.min.js" type="text/javascript"></script>
+   <script src="js/moment.min.js" type="text/javascript"></script>
+   <script src="js/jquery.flot.min.js" type="text/javascript"></script>
+   <script src="js/temperature.js" type="text/javascript"></script>
+</body>
+</html>

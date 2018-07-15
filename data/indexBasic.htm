@@ -1,0 +1,25 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta name = "viewport" content = "width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0">
+<title>ESP8266 AutoWater</title>
+<style>
+"body { background-color: #808080; font-family: Arial, Helvetica, Sans-Serif; Color: #000000; font-size: xx-large}"
+</style>
+</head>
+<body>
+<h1>AutoWater Pulse</h1>
+<form action="/pulse" method="post">
+<P>
+<input type="text" name="auth" value="14153143">PinCode<BR>
+<select name="value">
+  <option value="250">250</option>
+  <option value="500" selected>500</option>
+  <option value="1000">1000</option>
+  <option value="1500">1500</option>
+  <option value="2000">2000</option>
+</select>
+<input type="submit" value="Pulse">
+</P>
+</form>
+</html>

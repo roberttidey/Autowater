@@ -1,0 +1,11 @@
+#Config file for Auto Plant watering
+# lines are host;waterMode;waterInterval,waterPulse,moistureLevel;schedule;timeZone,timeZoneMinutes;sleepInterval
+esp8266-water
+3
+30
+500
+512
+schedule.txt
+0
+0
+1800

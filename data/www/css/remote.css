@@ -1,0 +1,123 @@
+/* Sticky footer styles
+-------------------------------------------------- */
+html {
+  position: relative;
+  min-height: 100%;
+}
+body {
+  /* Margin bottom by footer height */
+  margin-bottom: 60px;
+}
+body > .tab-content {
+  padding: 60px 15px 0;
+}
+
+.status {
+   background-color: #666666;
+   border-radius: 5px;
+   display: inline-block;
+   margin-right: 5px;
+   width: 10px;
+   height: 10px;
+}
+
+.status-on {
+   background-color: #95D690;
+}
+
+.footer {
+   position: absolute;
+   bottom: 0;
+   width: 100%;
+   height: 65px;
+   background-color: #f5f5f5;
+   text-align: center;
+}
+
+.footer .container {
+   padding-top: 15px;
+}
+
+#remote-loading {
+   text-align: center;
+}
+
+#remote-loading:before {
+   display: inline-block;
+   vertical-align: middle;
+   content: " ";
+   height: 100%;   
+}
+
+#remote-loading .modal-dialog {
+   display: inline-block;
+   text-align: left;
+   vertical-align: middle;
+   width: 200px;
+}
+
+#remote-loading .modal-content {
+   padding: 15px;
+   text-align: center;
+}
+
+#remote-loading-text {
+   margin: 10px 0 0 0;
+}
+
+#raw-code {
+   display: inline-block;
+   vertical-align: middle;
+}
+
+#raw-code .input-group {
+   max-width: 10em;
+}
+
+.time-row {
+   margin: 5px 0px;
+}
+
+#time-row-template {
+   display: none;
+}
+
+.time-onoff {
+   display: inline-block;
+   width: 150px;
+   vertical-align: middle;
+}
+
+.time-onoff.active .time-onoff-label {
+   background-color: #ECF277;
+}
+
+[data-time="days"] .btn-default.active {
+   background-color: #95D690;
+}
+
+input[data-time="enable"] {
+   display: inline;
+   width: 20px;
+   height: 20px;
+   vertical-align: middle;
+   margin-left: 15px;
+}
+
+.time-row-disabled .timepicker input {
+    background-color: #eee;
+}
+
+.time-row-disabled [data-time="days"] .btn-default.active {
+    background-color: #D0EACE;
+}
+
+button[data-time="delete"] {
+   display: inline;
+   vertical-align: middle;
+   margin-left: 15px;
+}
+
+#time-buttons {
+   margin: 10px 0px;
+}
