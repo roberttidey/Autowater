@@ -1,7 +1,7 @@
 # AutoPlantWater
 Auto Plant watering module for esp8266
 
-Construction details to be published shortly
+Construction details at https://www.instructables.com/id/Battery-Powered-Plant-Watering/
 
 ## Features
 - Neat self contained unit with reservoir and attached electronics
