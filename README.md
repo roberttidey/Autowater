@@ -3,6 +3,12 @@ Auto Plant watering module for esp8266
 
 Construction details at https://www.instructables.com/id/Battery-Powered-Plant-Watering/
 
+It makes use of the BaseSupport library at
+
+https://github.com/roberttidey/BaseSupport
+
+Edit the WifiManager and update passwords in BaseConfig.h
+
 ## Features
 - Neat self contained unit with reservoir and attached electronics
 - Battery powered (rechargeable LIPO) with inbuilt charger

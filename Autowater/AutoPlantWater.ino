@@ -13,79 +13,27 @@
  modify it under the terms of the GNU General Public License
  version 2 as published by the Free Software Foundation.
  */
-#define ESP8266
-
-#include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
-#include <ESP8266WebServer.h>
-#include <ESP8266mDNS.h>
-#include <ESP8266HTTPUpdateServer.h>
-#include <DNSServer.h>
-#include <WiFiManager.h>
-#include "FS.h"
+#include "BaseConfig.h"
 #include <TimeLib.h>
 #include <NtpClientLib.h>
 #include "wkEvents.h"
 
-//put -1 s at end
-int unusedPins[11] = {0,2,4,15,16,-1,-1,-1,-1,-1,-1};
-
-/*
-Wifi Manager Web set up
-If WM_NAME defined then use WebManager
-*/
-#define WM_NAME "autowater"
-#define WM_PASSWORD "password"
-#ifdef WM_NAME
-	WiFiManager wifiManager;
-#endif
-char wmName[33];
-
-//uncomment to use a static IP
-//#define WM_STATIC_IP 192,168,0,100
-//#define WM_STATIC_GATEWAY 192,168,0,1
-
-int timeInterval = 50;
-#define WIFI_CHECK_TIMEOUT 30000
 #define BUTTON_INTTIME_MIN 250
+int timeInterval = 50;
 unsigned long elapsedTime;
-unsigned long wifiCheckTime;
 unsigned long lastWaterTime;
 unsigned long storedWaterTime = 0;;
 unsigned long startUpTime;
 unsigned long buttonIntTime;
 unsigned long timeTillNext;
-//holds the current upload
-File fsUploadFile;
 
 int8_t timeZone = 0;
 int8_t minutesTimeZone = 0;
 time_t currentTime;
 
-//For update service
-String host = "esp8266-water";
-const char* update_path = "/firmware";
-const char* update_username = "admin";
-const char* update_password = "password";
-
-//AP definitions
-#define AP_SSID "ssid"
-#define AP_PASSWORD "password"
-#define AP_MAX_WAIT 10
-String macAddr;
-
-#define AP_AUTHID "12345678"
-#define AP_PORT 80
-
-ESP8266WebServer server(AP_PORT);
-ESP8266HTTPUpdateServer httpUpdater;
-HTTPClient cClient;
+#define AP_AUTHID "14153143"
 
 wkEvents wkSchedule;
-
-//Comment out for no authorisation else uses same authorisation as EIOT server
-#define EIOT_RETRIES 10
-
 
 //general variables
 #define CONFIG_FILE "/waterConfig.txt"
@@ -109,6 +57,8 @@ int waterInterval = 900; // seconds
 int waterPulse = 2000; // milliseconds
 int moistureLevel = 512;
 int sleepInterval = 900; //seconds
+uint64_t sleepuSec;
+
 String schedule = "null";
 int pulse;
 int requestPulse = 0;
@@ -120,30 +70,6 @@ int ntpRetries = 0;
 #define SLEEP_MODE_LIGHT 2
 int sleepMode = SLEEP_MODE_DEEP;
 
-void ICACHE_RAM_ATTR  delaymSec(unsigned long mSec) {
-	unsigned long ms = mSec;
-	while(ms > 100) {
-		delay(100);
-		ms -= 100;
-		ESP.wdtFeed();
-	}
-	delay(ms);
-	ESP.wdtFeed();
-	yield();
-}
-
-void ICACHE_RAM_ATTR  delayuSec(unsigned long uSec) {
-	unsigned long us = uSec;
-	while(us > 100000) {
-		delay(100);
-		us -= 100000;
-		ESP.wdtFeed();
-	}
-	delayMicroseconds(us);
-	ESP.wdtFeed();
-	yield();
-}
-
 void ICACHE_RAM_ATTR buttonPushInterrupt() {
 	unsigned long m = millis();
 	//Ignore fast edges
@@ -153,254 +79,21 @@ void ICACHE_RAM_ATTR buttonPushInterrupt() {
 	buttonIntTime = m;
 }
 
-
-void unusedIO() {
-	int i;
-	
-	for(i=0;i<11;i++) {
-		if(unusedPins[i] < 0) {
-			break;
-		} else if(unusedPins[i] != 16) {
-			pinMode(unusedPins[i],INPUT_PULLUP);
-		} else {
-			pinMode(16,INPUT_PULLDOWN_16);
-		}
-	}
-}
-
 /*
   Log event
 */
 void logEvent(int eventType, String event) {
 	currentTime = now(); 
-	File f = SPIFFS.open(LOG_FILE, "a");
+	File f = FILESYS.open(LOG_FILE, "a");
 	f.print(NTP.getDateStr(currentTime) + " " + NTP.getTimeStr(currentTime) + "," + String(eventType) + "," + event + "\n");
 	f.close();
-}
-
-
-/*
-  Connect to local wifi with retries
-  If check is set then test the connection and re-establish if timed out
-*/
-int wifiConnect(int check) {
-	if(check) {
-		if((elapsedTime - wifiCheckTime) * timeInterval > WIFI_CHECK_TIMEOUT) {
-			if(WiFi.status() != WL_CONNECTED) {
-				Serial.println(F("Wifi connection timed out. Try to relink"));
-			} else {
-				wifiCheckTime = elapsedTime;
-				return 1;
-			}
-		} else {
-			return 0;
-		}
-	}
-	wifiCheckTime = elapsedTime;
-#ifdef WM_NAME
-	Serial.println(F("Set up managed Web"));
-#ifdef WM_STATIC_IP
-	wifiManager.setSTAStaticIPConfig(IPAddress(WM_STATIC_IP), IPAddress(WM_STATIC_GATEWAY), IPAddress(255,255,255,0));
-#endif
-	wifiManager.setConfigPortalTimeout(180);
-	//Revert to STA if wifimanager times out as otherwise APA is left on.
-	strcpy(wmName, WM_NAME);
-	strcat(wmName, macAddr.c_str());
-	wifiManager.autoConnect(wmName, WM_PASSWORD);
-	WiFi.mode(WIFI_STA);
-#else
-	Serial.println(F("Set up manual Web"));
-	int retries = 0;
-	Serial.print(F("Connecting to AP"));
-	#ifdef AP_IP
-		IPAddress addr1(AP_IP);
-		IPAddress addr2(AP_DNS);
-		IPAddress addr3(AP_GATEWAY);
-		IPAddress addr4(AP_SUBNET);
-		WiFi.config(addr1, addr2, addr3, addr4);
-	#endif
-	WiFi.begin(AP_SSID, AP_PASSWORD);
-	while (WiFi.status() != WL_CONNECTED && retries < AP_MAX_WAIT) {
-		delaymSec(1000);
-		Serial.print(".");
-		retries++;
-	}
-	Serial.println("");
-	if(retries < AP_MAX_WAIT) {
-		Serial.print("WiFi connected ip ");
-		Serial.print(WiFi.localIP());
-		Serial.printf(":%d mac %s\r\n", AP_PORT, WiFi.macAddress().c_str());
-		return 1;
-	} else {
-		Serial.println(F("WiFi connection attempt failed")); 
-		return 0;
-	} 
-#endif
-	//wifi_set_sleep_type(LIGHT_SLEEP_T);
-}
-
-
-void initFS() {
-	if(!SPIFFS.begin()) {
-		Serial.println(F("No SIFFS found. Format it"));
-		if(SPIFFS.format()) {
-			SPIFFS.begin();
-		} else {
-			Serial.println(F("No SIFFS found. Format it"));
-		}
-	} else {
-		Serial.println(F("SPIFFS file list"));
-		Dir dir = SPIFFS.openDir("/");
-		while (dir.next()) {
-			Serial.print(dir.fileName());
-			Serial.print(F(" - "));
-			Serial.println(dir.fileSize());
-		}
-	}
-}
-
-String getContentType(String filename){
-  if(server.hasArg("download")) return "application/octet-stream";
-  else if(filename.endsWith(".htm")) return "text/html";
-  else if(filename.endsWith(".html")) return "text/html";
-  else if(filename.endsWith(".css")) return "text/css";
-  else if(filename.endsWith(".js")) return "application/javascript";
-  else if(filename.endsWith(".png")) return "image/png";
-  else if(filename.endsWith(".gif")) return "image/gif";
-  else if(filename.endsWith(".jpg")) return "image/jpeg";
-  else if(filename.endsWith(".ico")) return "image/x-icon";
-  else if(filename.endsWith(".xml")) return "text/xml";
-  else if(filename.endsWith(".pdf")) return "application/x-pdf";
-  else if(filename.endsWith(".zip")) return "application/x-zip";
-  else if(filename.endsWith(".gz")) return "application/x-gzip";
-  return "text/plain";
-}
-
-bool handleFileRead(String path){
-  Serial.printf_P(PSTR("handleFileRead: %s\r\n"), path.c_str());
-  if(path.endsWith("/")) path += "index.htm";
-  String contentType = getContentType(path);
-  String pathWithGz = path + ".gz";
-  if(SPIFFS.exists(pathWithGz) || SPIFFS.exists(path)){
-    if(SPIFFS.exists(pathWithGz))
-      path += ".gz";
-    File file = SPIFFS.open(path, "r");
-    size_t sent = server.streamFile(file, contentType);
-    file.close();
-    return true;
-  }
-  return false;
-}
-
-void handleFileUpload(){
-  if(server.uri() != "/edit") return;
-  HTTPUpload& upload = server.upload();
-  if(upload.status == UPLOAD_FILE_START){
-    String filename = upload.filename;
-    if(!filename.startsWith("/")) filename = "/"+filename;
-    Serial.printf_P(PSTR("handleFileUpload Name: %s\r\n"), filename.c_str());
-    fsUploadFile = SPIFFS.open(filename, "w");
-    filename = String();
-  } else if(upload.status == UPLOAD_FILE_WRITE){
-    Serial.printf_P(PSTR("handleFileUpload Data: %d\r\n"), upload.currentSize);
-    if(fsUploadFile)
-      fsUploadFile.write(upload.buf, upload.currentSize);
-  } else if(upload.status == UPLOAD_FILE_END){
-    if(fsUploadFile)
-      fsUploadFile.close();
-    Serial.printf_P(PSTR("handleFileUpload Size: %d\r\n"), upload.totalSize);
-  }
-}
-
-void handleFileDelete(){
-  if(server.args() == 0) return server.send(500, "text/plain", "BAD ARGS");
-  String path = server.arg(0);
-  Serial.printf_P(PSTR("handleFileDelete: %s\r\n"),path.c_str());
-  if(path == "/")
-    return server.send(500, "text/plain", "BAD PATH");
-  if(!SPIFFS.exists(path))
-    return server.send(404, "text/plain", "FileNotFound");
-  SPIFFS.remove(path);
-  server.send(200, "text/plain", "");
-  path = String();
-}
-
-void handleFileCreate(){
-  if(server.args() == 0)
-    return server.send(500, "text/plain", "BAD ARGS");
-  String path = server.arg(0);
-  Serial.printf_P(PSTR("handleFileCreate: %s\r\n"),path.c_str());
-  if(path == "/")
-    return server.send(500, "text/plain", "BAD PATH");
-  if(SPIFFS.exists(path))
-    return server.send(500, "text/plain", "FILE EXISTS");
-  File file = SPIFFS.open(path, "w");
-  if(file)
-    file.close();
-  else
-    return server.send(500, "text/plain", "CREATE FAILED");
-  server.send(200, "text/plain", "");
-  path = String();
-}
-
-void handleFileList() {
-  if(!server.hasArg("dir")) {server.send(500, "text/plain", "BAD ARGS"); return;}
-  
-  String path = server.arg("dir");
-  Serial.printf_P(PSTR("handleFileList: %s\r\n"),path.c_str());
-  Dir dir = SPIFFS.openDir(path);
-  path = String();
-
-  String output = "[";
-  while(dir.next()){
-    File entry = dir.openFile("r");
-    if (output != "[") output += ',';
-    bool isDir = false;
-    output += "{\"type\":\"";
-    output += (isDir)?"dir":"file";
-    output += "\",\"name\":\"";
-    output += String(entry.name()).substring(1);
-    output += "\"}";
-    entry.close();
-  }
-  output += "]";
-  server.send(200, "text/json", output);
-}
-
-void handleMinimalUpload() {
-  char temp[700];
-
-  snprintf ( temp, 700,
-    "<!DOCTYPE html>\
-    <html>\
-      <head>\
-        <title>ESP8266 Upload</title>\
-        <meta charset=\"utf-8\">\
-        <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\
-        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
-      </head>\
-      <body>\
-        <form action=\"/edit\" method=\"post\" enctype=\"multipart/form-data\">\
-          <input type=\"file\" name=\"data\">\
-          <input type=\"text\" name=\"path\" value=\"/\">\
-          <button>Upload</button>\
-         </form>\
-      </body>\
-    </html>"
-  );
-  server.send ( 200, "text/html", temp );
-}
-
-void handleSpiffsFormat() {
-	SPIFFS.format();
-	server.send(200, "text/json", "format complete");
 }
 
 /*
   load schedule
 */
 void loadSchedule() {
-	File f = SPIFFS.open("/" + schedule, "r");
+	File f = FILESYS.open("/" + schedule, "r");
 	if(f) {
 		wkSchedule.clearEvents();
 		wkSchedule.loadEvents(f);
@@ -412,7 +105,7 @@ void loadSchedule() {
   save schedule
 */
 void saveSchedule() {
-	File f = SPIFFS.open("/" + schedule, "w");
+	File f = FILESYS.open("/" + schedule, "w");
 	f.print("#Weekly Schedule\n");
 	f.print("#Each line is eventCode(0-255),day(1-7),hour(0-23),minute(0-59),second(0-59)\n");
 	wkSchedule.saveEvents(f);
@@ -420,12 +113,12 @@ void saveSchedule() {
 }
 
 /*
-  Get config
+  Load config
 */
-void getConfig() {
+void loadConfig() {
 	String line = "";
 	int config = 0;
-	File f = SPIFFS.open(CONFIG_FILE, "r");
+	File f = FILESYS.open(CONFIG_FILE, "r");
 	if(f) {
 		while(f.available()) {
 			line =f.readStringUntil('\n');
@@ -471,7 +164,7 @@ void getConfig() {
   Save config
 */
 void saveConfig() {
-	File f = SPIFFS.open(CONFIG_FILE, "w");
+	File f = FILESYS.open(CONFIG_FILE, "w");
 	if(f) {
 		f.print(String(F("#Config file for Auto Plant watering")) + "\n");
 		f.print(String(F("# lines are host;waterMode;waterInterval,waterPulse,moistureLevel;schedule;timeZone,timeZoneMinutes;sleepInterval")) + "\n");
@@ -497,7 +190,7 @@ void reloadConfig() {
 		Serial.println("Unauthorized");
 		server.send(401, "text/html", "Unauthorized");
 	} else {
-		getConfig();
+		loadConfig();
 		loadSchedule();
 		server.send(200, "text/html", "Config reload");
 	}
@@ -639,7 +332,7 @@ void deleteEvent() {
   getstoredWaterTime
 */
 void getstoredWaterTime() {
-	File f = SPIFFS.open(NEXT_WATER_FILE, "r");
+	File f = FILESYS.open(NEXT_WATER_FILE, "r");
 	if(f) {
 		storedWaterTime = strtoul(f.readStringUntil('\n').c_str(), NULL, 10);
 		f.close();
@@ -653,7 +346,7 @@ void getstoredWaterTime() {
   savestoredWaterTime
 */
 void savestoredWaterTime() {
-	File f = SPIFFS.open(NEXT_WATER_FILE, "w");
+	File f = FILESYS.open(NEXT_WATER_FILE, "w");
 	f.print(String(storedWaterTime) + "\n");
 	f.close();
 }
@@ -717,50 +410,6 @@ unsigned long checkWater() {
 }
 
 /*
- Send report to easyIOTReport
- if digital = 1, send digital else analog
-*/
-void easyIOTReport(String node, float value, int digital) {
-	int retries = EIOT_RETRIES;
-	int responseOK = 0;
-	int httpCode;
-	String url = String(EIOT_IP_ADDRESS) + node;
-	// generate EasIoT server node URL
-	if(digital == 1) {
-		if(value > 0)
-			url += "/ControlOn";
-		else
-			url += "/ControlOff";
-	} else {
-		url += "/ControlLevel/" + String(value);
-	}
-	Serial.print("POST data to URL: ");
-	Serial.println(url);
-	while(retries > 0) {
-		cClient.setAuthorization(EIOT_USERNAME, EIOT_PASSWORD);
-		cClient.begin(url);
-		httpCode = cClient.GET();
-		if (httpCode > 0) {
-			if (httpCode == HTTP_CODE_OK) {
-				String payload = cClient.getString();
-				Serial.println(payload);
-				responseOK = 1;
-			}
-		} else {
-			Serial.printf("[HTTP] POST... failed, error: %s\n", cClient.errorToString(httpCode).c_str());
-		}
-		cClient.end();
-		if(responseOK)
-			break;
-		else
-			Serial.println(F("Retrying EIOT report"));
-		retries--;
-	}
-	Serial.println();
-	Serial.println(F("Connection closed"));
-}
-
-/*
   getStatus
 */
 void getStatus() {
@@ -770,9 +419,8 @@ void getStatus() {
 	int cHour = hour(currentTime);
 	int cMinute = minute(currentTime);
 	int cSecond = second(currentTime);
-	int i;
 	
-	File f = SPIFFS.open("/" + schedule, "r");
+	File f = FILESYS.open("/" + schedule, "r");
 	if(f) {
 		response = "Time," + NTP.getDateStr(currentTime) + " " + NTP.getTimeStr(currentTime) + "<BR>";
 		response += "Day Number," + String(cDay) + "<BR>";
@@ -782,13 +430,6 @@ void getStatus() {
 		} else {
 			response += "Schedule Count," + String(wkSchedule.getEventCount()) + "<BR>";
 		}
-		
-/*
-		int c = wkSchedule.getEventCount();
-		for(i=0;i<c;i++) {
-			response += "Sch," + String(i) + " " + wkSchedule.getEventString(i) + "<BR>";
-		}
-*/		
 		response += "GetCurrentEvent," + String(wkSchedule.getEventCode(cDay,cHour,cMinute,cSecond)) + "<BR>";
 		response += "GetCurrentIndex," + String(wkSchedule.getEventIndex(cDay,cHour,cMinute,cSecond)) + "<BR>";
 		response += "SecondsToNext," + String(wkSchedule.getSecondsToNext(cDay,cHour,cMinute,cSecond)) + "<BR>";
@@ -800,66 +441,36 @@ void getStatus() {
 	server.send(200, "text/html", response);
 }
 
-/*
-  Set up basic wifi, collect config from flash/server, initiate update server
-*/
-void setup() {
+void setupStart() {
 	startUpTime = millis();
-	unusedIO();
 	digitalWrite(WATER_PIN, 0);
 	digitalWrite(MOISTURE_PIN, 1);
 	pinMode(WATER_PIN, OUTPUT);
 	pinMode(MOISTURE_PIN, OUTPUT);
 	pinMode(PUSH_BUTTON1, INPUT_PULLUP);
 	pinMode(PUSH_BUTTON2, INPUT_PULLUP);
-	Serial.begin(115200);
-	Serial.println(F("Set up filing system"));
-	initFS();
-	getConfig();
-	loadSchedule();
-	if(digitalRead(PUSH_BUTTON1) == 0) {
-		sleepMode = SLEEP_MODE_OFF;
-		Serial.println(F("Sleep override active"));
-	}
-	Serial.println(F("Set up Wifi services"));
-	macAddr = WiFi.macAddress();
-	macAddr.replace(":","");
-	Serial.println(macAddr);
-	wifiConnect(0);
-	//Update service
-	MDNS.begin(host.c_str());
-	httpUpdater.setup(&server, update_path, update_username, update_password);
-	Serial.println(F("Set up web server"));
-	//Simple upload
-	server.on("/upload", handleMinimalUpload);
+}
+
+void extraHandlers() {
 	server.on("/reloadConfig", reloadConfig);
 	server.on("/status", getStatus);
 	server.on("/pulse", webPulse);
 	server.on("/updateConfig", updateConfig);
 	server.on("/addEvent", addEvent);
 	server.on("/deleteEvent", deleteEvent);
-	server.on("/format", handleSpiffsFormat);
-	server.on("/list", HTTP_GET, handleFileList);
-	//load editor
-	server.on("/edit", HTTP_GET, [](){
-    if(!handleFileRead("/edit.htm")) server.send(404, "text/plain", "FileNotFound");});
-	//create file
-	server.on("/edit", HTTP_PUT, handleFileCreate);
-	//delete file
-	server.on("/edit", HTTP_DELETE, handleFileDelete);
-	//first callback is called after the request has ended with all parsed arguments
-	//second callback handles file uploads at that location
-	server.on("/edit", HTTP_POST, [](){ server.send(200, "text/plain", ""); }, handleFileUpload);
-	//called when the url is not defined here
-	//use it to load content from SPIFFS
-	server.onNotFound([](){if(!handleFileRead(server.uri())) server.send(404, "text/plain", "FileNotFound");});
-	server.begin();
-	MDNS.addService("http", "tcp", 80);
+}
+ 
+void setupEnd() {
+	loadSchedule();
+	if(digitalRead(PUSH_BUTTON1) == 0) {
+		sleepMode = SLEEP_MODE_OFF;
+		Serial.println(F("Sleep override active"));
+	}
 	NTP.begin ("pool.ntp.org", timeZone, true, minutesTimeZone);
 	NTP.setInterval(NTP_SHORTINTERVAL, 60);
-	int i;
 	attachInterrupt(PUSH_BUTTON2, buttonPushInterrupt, RISING);
 	Serial.println(F("Set up complete"));
+	Serial.println("Setup ended at " + String(millis()));
 }
 
 /*
@@ -888,9 +499,11 @@ void loop() {
 			Serial.println("Active Msec before sleep " + String(millis()-startUpTime));
 			digitalWrite(MOISTURE_PIN, 0);
 			if(timeTillNext > (sleepInterval)) {
-				ESP.deepSleep(1e6*sleepInterval);
+				sleepuSec = 1e6*sleepInterval;
+				ESP.deepSleep(sleepuSec);
 			} else {
-				ESP.deepSleep(1e6*(timeTillNext + 30));
+				sleepuSec = 1e6*(timeTillNext + 30);
+				ESP.deepSleep(sleepuSec);
 			}
 		}
 		for(i = 0;i < sleepInterval*1000/timeInterval; i++) {
