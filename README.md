@@ -8,6 +8,7 @@ It makes use of the BaseSupport library at
 https://github.com/roberttidey/BaseSupport
 
 Edit the WifiManager and update passwords in BaseConfig.h
+Uncomment FASTCONNECT in BaseConfig.h as required
 
 ## Features
 - Neat self contained unit with reservoir and attached electronics
